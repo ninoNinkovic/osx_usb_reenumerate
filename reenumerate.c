@@ -283,7 +283,16 @@ void DeviceAdded(void *refCon, io_iterator_t iterator)
             if (KERN_SUCCESS == myret)
             {
                 printf("ReEnumerate succeeded!");
-                exit(0);
+                kr = usb->USBDeviceClose((privateDataRef->deviceInterface));
+                if (KERN_SUCCESS != kr)
+                {
+                    fprintf(stderr, "failed to close usb device");
+                    exit(-2);
+                }
+                else
+                {
+                    fprintf(stderr, "usb device closed");
+                }
             }
             else {
                 printf("ReEnumerate failed with code %08x\n", myret);
@@ -310,9 +319,19 @@ void DeviceAdded(void *refCon, io_iterator_t iterator)
         //     printf("IOServiceAddInterestNotification returned 0x%08x\n", kr);
         // }
 
+        
         // Done with this io_service_t
-        //
-        // kr = IOObjectRelease(usbDevice);
+        kr = IOObjectRelease(usbDevice);
+        if (KERN_SUCCESS != kr)
+        {
+            fprintf(stderr, "failed to release usb object");
+            exit(-1);
+        }
+        else
+        {
+            fprintf(stderr, "all done successfully :)");
+            exit(0);
+        }
     }
 }
 
