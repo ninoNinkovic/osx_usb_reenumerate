@@ -218,7 +218,7 @@ void DeviceAdded(void *refCon, io_iterator_t iterator)
         // Dump our data to stdout just to see what it looks like.
         //
         CFShow(deviceNameAsCFString);
-        
+
         privateDataRef->deviceName = deviceNameAsCFString;
 
         // Now, get the locationID of this device.  In order to do this, we need to create an IOUSBDeviceInterface for
@@ -262,40 +262,67 @@ void DeviceAdded(void *refCon, io_iterator_t iterator)
         {
             // DW Added:
             IOUSBDeviceInterface187* usb = (IOUSBDeviceInterface187*)*privateDataRef->deviceInterface;
-            fprintf(stderr, "Device found, re-enumerating...\n");
-            IOReturn myret = usb->USBDeviceReEnumerate((privateDataRef->deviceInterface), 0);
-            if (kIOReturnNotOpen == myret)
+            printf("\nDevice found, re-enumerating...\n");
+            IOReturn reenumerateRet = usb->USBDeviceReEnumerate((privateDataRef->deviceInterface), 0);
+            if (kIOReturnNotOpen == reenumerateRet)
             {
                 fprintf(stderr, "Device not open, opening for exclusive access...\n");
                 IOReturn openret = usb->USBDeviceOpen((privateDataRef->deviceInterface));
-                if (kIOReturnExclusiveAccess == openret)
+                if (KERN_SUCCESS == openret)
                 {
-                    fprintf(stderr, "Device already open with exclusive access, cannot open to re-enumerate. If another user had previously logged in, from what I can gather, you must restart your mac.\n");
-                    exit(-1);
+                    fprintf(stderr, "Device opened\n");
+                    // fprintf(stderr, "Device already open with exclusive access, cannot open to re-enumerate. If another user had previously logged in, from what I can gather, you must restart your mac.\n");
+                    // exit(-1);
                 }
-                else if (KERN_SUCCESS != openret) 
+                else if (kIOReturnExclusiveAccess == openret) 
+                {
+                    fprintf(stderr, "Device already open for exclusive access, continuing... %08x\n", openret);
+                }
+                else
                 {
                     fprintf(stderr, "Failed to open device, exitting... %08x\n", openret);
                     exit(-1);
                 }
-                myret = usb->USBDeviceReEnumerate((privateDataRef->deviceInterface), 0);
+                fprintf(stderr, "Reattempting, re-enumerate operation...\n");
+                reenumerateRet = usb->USBDeviceReEnumerate((privateDataRef->deviceInterface), 0);
+                if (KERN_SUCCESS != reenumerateRet)
+                {
+                    fprintf(stderr, "Failed to ReEnumerate\n");
+                }
             }
-            if (KERN_SUCCESS == myret)
+            if (KERN_SUCCESS == reenumerateRet)
             {
-                printf("ReEnumerate succeeded!");
-                kr = usb->USBDeviceClose((privateDataRef->deviceInterface));
+                printf("Reenumerate succeeded!\n");
+                IOUSBInterfaceInterface300* usb300 = (IOUSBInterfaceInterface300*)*privateDataRef->deviceInterface;
+                kr = usb300->USBInterfaceClose((privateDataRef->deviceInterface));
                 if (KERN_SUCCESS != kr)
                 {
-                    fprintf(stderr, "failed to close usb device");
+                    fprintf(stderr, "failed to close usb interface\n");
                     exit(-2);
                 }
                 else
                 {
-                    fprintf(stderr, "usb device closed");
+                    printf("\nUSB interface closed\n");
+                    // kr = usb->USBDeviceClose((privateDataRef->deviceInterface));
+                    // if (KERN_SUCCESS != kr)
+                    // {
+                    //     fprintf(stderr, "failed to close usb device\n");
+                    // }
+                    // else
+                    // {
+                    //     fprintf(stderr, "usb device closed\n");
+                    // }
                 }
+                
             }
             else {
-                printf("ReEnumerate failed with code %08x\n", myret);
+                if (kIOReturnNotOpen == reenumerateRet) {
+                    printf("ReEnumerate failed as device was not open");
+                    
+                }
+                else {
+                    printf("ReEnumerate failed with code %08x\n", reenumerateRet);
+                }
                 exit(-1);
             }
             
@@ -324,12 +351,12 @@ void DeviceAdded(void *refCon, io_iterator_t iterator)
         kr = IOObjectRelease(usbDevice);
         if (KERN_SUCCESS != kr)
         {
-            fprintf(stderr, "failed to release usb object");
+            fprintf(stderr, "failed to release usb object\n");
             exit(-1);
         }
         else
         {
-            fprintf(stderr, "all done successfully :)");
+            fprintf(stderr, "All done successfully - reenumeration complete :)\n");
             exit(0);
         }
     }
@@ -400,7 +427,7 @@ int main (int argc, const char *argv[])
         return -1;
     }
 
-    printf("Looking for devices matching vendor ID=%ld and product ID=%ld\n", usbVendor, usbProduct);
+    printf("Looking for devices matching vendor ID=%ld and product ID=%ld\n\n", usbVendor, usbProduct);
 
     // Set up the matching criteria for the devices we're interested in.  The matching criteria needs to follow
     // the same rules as kernel drivers:  mainly it needs to follow the USB Common Class Specification, pp. 6-7.
